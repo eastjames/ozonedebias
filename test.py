@@ -1,0 +1,13 @@
+from obsgetter import Castnet
+og = Castnet()
+print(og)
+#og.tomda8()
+og.checkfile()
+print(og.check_castnet())
+print(og.get_castnet())
+df1 = og.open_clean_castnet()
+print('returned object')
+print(df1.head())
+print()
+print('class obj')
+print(og.df.head())
