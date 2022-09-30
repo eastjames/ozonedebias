@@ -89,6 +89,9 @@ class ModGetter:
         self.datadir = f'data/{kind}'# data dir for this kind
         self.clusters = None
         
+    def setclusters(self,ds):
+        self.clusters = ds
+        
         
 class Camchem(ModGetter):
     '''

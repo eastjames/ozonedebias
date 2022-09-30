@@ -87,8 +87,16 @@ class Debiaser:
         '''
         Save out inertia data for plotting
         '''
-        df = clustering.prepcols(self.obs.df)
-        dfstd = clustering.standardize(df)
+        self.obs.sitell_to_modij(self.mod) # assign model i,j indices to sites
+        self.obs.clipij(self.mod) # clip sites to only those within mod mask
+        self.obs.clipt(self.mod) # clip obs to match mod times
+        self.obs.detrendit(toyear=2000) # detrend df
+        df = clustering.prepcols(self.obs.df) # prepare columns
+        df = df.merge(self.obs.sitedf[['i','j','SITE_ID']],on='SITE_ID')# merge with site i,j indices
+        clusterby = ['ozone','x95','std','i','j']
+        dfstd = clustering.standardize(df, clusterby) # standardize with MinMaxScaler
+        #df = clustering.prepcols(self.obs.df)
+        #dfstd = clustering.standardize(df)
         clustering.save_inertia_data(dfstd, outpath, ntries)
         
     def cluster_obs(
@@ -96,6 +104,7 @@ class Debiaser:
             toyear = 2000, 
             clusterby = ['ozone','x95','std','i','j'],
             shuffledata = False,
+            samplefrac = 1,
             n_clusters = 7
         ):
         '''
@@ -113,21 +122,35 @@ class Debiaser:
         df = clustering.prepcols(self.obs.df) # prepare columns
         df = df.merge(self.obs.sitedf[['i','j','SITE_ID']],on='SITE_ID')# merge with site i,j indices
         dfstd = clustering.standardize(df, clusterby) # standardize with MinMaxScaler
-        dfclustered = clustering.clusterobs(dfstd, n_clusters, clusterby , shuffledata)
+        dfclustered = clustering.clusterobs(dfstd, n_clusters, clusterby , shuffledata, samplefrac)
         tmpdf = self.obs.sitedf.reset_index(drop=True).iloc[dfclustered['index']] # reorder in case shuffled
-        tmpdf['cluster'] = dfclustered['cluster']
-        self.obs.sitedf = tmpdf
+        #tmpdf['cluster'] = dfclustered['cluster']
+        tmpdf = tmpdf.merge(dfclustered[['index','cluster']],right_on='index',left_index=True)
+        #dfclustered['SITE_ID'] = tmpdf.reset_index().iloc[dfclustered['index']]['SITE_ID'].values
+        dfclustered = dfclustered.merge(tmpdf[['index','SITE_ID']],on='index')
+        dfclustered = dfclustered.drop(columns='index')
+        self.obs.setclusterdf(dfclustered)
+        self.obs.setsitedf(tmpdf.drop(columns='index'))
         
-    def cluster_mod(self, clusterby = ['ozone','i','j'], ozkey = 'O3_SRF_8H_24HMAX'):
+    def cluster_mod(
+            self,
+            clusterby = ['ozone','x95','std','i','j'],
+            ozkey = 'O3_SRF_8H_24HMAX'
+        ):
         '''
         Cluster model grid cells to obs clusters
         using Nearest Centroid
         
         * clusterby: features of model data to sort on
         '''
-        dfm = clustering.prepmod(self.mod.ds, self.mod.usmask)
-        modclusters = clustering.clustermod(dfm, clusterby)
-        dclusters = self.mod.ds[ozkey].mean('date').copy(deep=True).rename('cluster')
-        dclusters.values.ravel()[~np.isnan(dclusters.where(usmask).values.flatten())] = mclusters
-        self.mod.clusters = dclusters
+        dfm = clustering.prepmod(self.mod.ds, self.mod.usmask,clusterby,ozkey)
+        modclusters = clustering.clustermod(dfm, self.obs, clusterby)
+        dclusters = (
+            self.mod.ds[ozkey]
+            .mean('date').where(db.mod.usmask)
+            .copy(deep=True)
+            .rename('cluster')
+        )
+        dclusters.values[self.mod.usmask] = modclusters
+        self.mod.setclusters(dclusters)
         

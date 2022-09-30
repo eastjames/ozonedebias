@@ -13,8 +13,15 @@ class ObsGetter:
         #self.file = file
         self.df = None # data frame of data
         self.sitedf = None # data frame of site data
+        self.clusterdf = None
         self.kind = kind # kind i.e. castnet
         self.datadir = f'data/{kind}'# data dir for this kind
+        
+    def setsitedf(self,df):
+        self.sitedf = df
+        
+    def setclusterdf(self,df):
+        self.clusterdf = df
         
     def tomda8(self,update=True):
         '''
@@ -198,7 +205,7 @@ class Castnet(ObsGetter):
         super().__init__(kind='castnet')
         
     def checkfile(self):
-        print('checkfile() not implemented')
+        #print('checkfile() not implemented')
         pass
 
     def check_castnet(self):
