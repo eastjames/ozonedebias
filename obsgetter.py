@@ -88,11 +88,6 @@ class ObsGetter:
         self.df = tmpdf[mycols].dropna()
 
 
-    def detrendit(self,ozkey='ozone',toyear=2000):
-        '''
-        detrend castnet obs to year 2000
-        '''
-        return detrender(self.df,ozkey='ozone',toyear=2000)
     
     def _updatesites(self):
         '''
@@ -104,9 +99,26 @@ class ObsGetter:
                 .first()[['lat','lon']]
                 .reset_index()
             )
+        else:
+            self.sitedf = self.sitedf.merge(
+                self.df.groupby('SITE_ID').first()[[]],
+                on='SITE_ID'
+            )
+            
     
     def savedf(self, fname = 'tmp.csv'):
         self.df.to_csv(f'{self.datadir}/{fname}')
+        
+        
+    def detrendit(self,ozkey='ozone',toyear=2000):
+        '''
+        detrend castnet obs to year 2000
+        updates sites
+        changes df and sitedf
+        '''
+        self.df = detrender(self.df,ozkey=ozkey,toyear=toyear)
+        self._updatesites()
+    
         
     def sitell_to_modij(self, mod):
         '''
@@ -149,8 +161,21 @@ class ObsGetter:
             axis=1
         ).all(1)
         
-        self.sitedf = self.sitedf[inmod]
+        self.sitedf = self.sitedf[inmod].reset_index(drop=True)
         self.df = self.df.merge(self.sitedf[['SITE_ID']],on='SITE_ID')
+        
+        
+    def clipt(self, mod, modkey='date',obkey='DATE_TIME'):
+        '''
+        Clip obs t to match model t
+        and update sitedf to only includes
+        sites that are here in that time
+        '''
+        dtidx = pd.DatetimeIndex(self.df[obkey]).normalize()
+        modidx = mod.ds.indexes[modkey].normalize()
+        self.df = self.df[dtidx.isin(modidx)]
+        self._updatesites()
+        
     
     
     def cluster(self):

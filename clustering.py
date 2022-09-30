@@ -18,7 +18,7 @@ basedir = '/'.join(os.path.abspath(__file__).split('/')[:-1])
 #cndir = 'data/castnet'
 
 
-def prepcols(df)
+def prepcols(df):
     '''
     Pre df for clustering
     mean, 95%, std at each site for year
@@ -31,7 +31,7 @@ def prepcols(df)
     sitegb = df.groupby('SITE_ID')
     dfsites = (
         sitegb.first()[['lat','lon']]
-        .merge(sitegb.mean()['ozone'])
+        .merge(sitegb.mean()[['ozone']],on='SITE_ID')
     )
     ozx = sitegb.quantile(0.95)['ozone'].rename('x95')
     obstd = sitegb.std()['ozone'].rename('std')
@@ -40,16 +40,16 @@ def prepcols(df)
     return dfsites
 
 
-def standardize(df):
+def standardize(df, keepcols = ['ozone','x95','std','i','j']):
     '''
     Standardize the data for clustering
     assumes "prepcols()" done
     Uses MinMax() scaler
     
     * df: includes cols ['ozone','x95','std','i','j']
+    * keepcols: cols to standardize
     '''
     dfminmax = pd.DataFrame() #minmax scaler
-    keepcols = ['ozone','x95','std','i','j']
     for d,n in zip([df[k].to_numpy()[:,None] for k in keepcols], keepcols):
         #scaler = preprocessing.StandardScaler() # standard scaler
         #dfstd[n] = scaler.fit_transform(d).squeeze()
@@ -97,7 +97,7 @@ def clusterobs(df, n_clusters, clusterby, random):
     if random:
         dfs = df.sample(frac=1).reset_index(drop=False)
     else:
-        dfs = df
+        dfs = df.reset_index(drop=False)
     dfs['cluster']= kmeans.fit_predict(dfs[clusterby])
     
     return dfs

@@ -79,27 +79,42 @@ class Debiaser:
         '''
         self.mod = modgetter
     
-    def save_inertia(self, outpath = f'{basedir}/data/clustering/inertia.csv', ntries = 15)
+    def save_inertia(
+            self, 
+            outpath = f'{basedir}/data/clustering/inertia.csv',
+            ntries = 15
+        ):
         '''
         Save out inertia data for plotting
         '''
         df = clustering.prepcols(self.obs.df)
         dfstd = clustering.standardize(df)
-        clustering.save_inertia_data(dfstd, outpath, ntries):
+        clustering.save_inertia_data(dfstd, outpath, ntries)
         
     def cluster_obs(
             self,
-            clusterby = ['ozone','x95','std'],
+            toyear = 2000, 
+            clusterby = ['ozone','x95','std','i','j'],
             shuffledata = False,
             n_clusters = 7
         ):
         '''
         Cluster obs using kmeans
+        
+        * toyear: year to detrend to, only sites in that year kept
+        * clusterby: cols to cluster on
+        * shuffledata: whether to random dearrange df before clustering
+        * n_clusters: number of clusters
         '''
-        df = clustering.prepcols(self.obs.df)
-        dfstd = clustering.standardize(df)
-        dfclustered = clustering.clusterobs(df, n_clusters, clusterby , shuffledata)
-        tmpdf = self.sitedf.reset_index().iloc[dfclustered['index']]
+        self.obs.sitell_to_modij(self.mod) # assign model i,j indices to sites
+        self.obs.clipij(self.mod) # clip sites to only those within mod mask
+        self.obs.clipt(self.mod) # clip obs to match mod times
+        self.obs.detrendit(toyear=2000) # detrend df
+        df = clustering.prepcols(self.obs.df) # prepare columns
+        df = df.merge(self.obs.sitedf[['i','j','SITE_ID']],on='SITE_ID')# merge with site i,j indices
+        dfstd = clustering.standardize(df, clusterby) # standardize with MinMaxScaler
+        dfclustered = clustering.clusterobs(dfstd, n_clusters, clusterby , shuffledata)
+        tmpdf = self.obs.sitedf.reset_index(drop=True).iloc[dfclustered['index']] # reorder in case shuffled
         tmpdf['cluster'] = dfclustered['cluster']
         self.obs.sitedf = tmpdf
         
