@@ -1,6 +1,7 @@
 import pandas as pd
 import os
-import detrend
+from .detrend import detrender
+import numpy as np
 
 class ObsGetter:
     '''
@@ -11,6 +12,7 @@ class ObsGetter:
     def __init__(self,kind):
         #self.file = file
         self.df = None # data frame of data
+        self.sitedf = None # data frame of site data
         self.kind = kind # kind i.e. castnet
         self.datadir = f'data/{kind}'# data dir for this kind
         
@@ -59,8 +61,13 @@ class ObsGetter:
             .dropna()
         )
         if update:
+            self.sitedf = (
+                df.groupby(['SITE_ID'])
+                .first()[['SITE_ID','lat','lon']]
+            )
             self.df = df
         return df
+    
     
     def castnet_from_existing(self, file):
         '''
@@ -85,22 +92,65 @@ class ObsGetter:
         '''
         detrend castnet obs to year 2000
         '''
-        return detrend.detrender(self.df,ozkey='ozone',toyear=2000)
+        return detrender(self.df,ozkey='ozone',toyear=2000)
     
+    def _updatesites(self):
+        '''
+        update the site df
+        '''
+        if self.sitedf is None:
+            self.sitedf = (
+                self.df.groupby(['SITE_ID'])
+                .first()[['lat','lon']]
+                .reset_index()
+            )
     
     def savedf(self, fname = 'tmp.csv'):
         self.df.to_csv(f'{self.datadir}/{fname}')
         
+    def sitell_to_modij(self, mod):
+        '''
+        convert site lat/lon to
+        i,j indices on the model grid
+        Note -- assumes CAM Chem grid
+        * mod: ModGetter object
+        '''
+        self._updatesites()
+        self.sitedf['i'] = (
+            (np.abs(
+                mod.ds.lon.values - 
+                #(self.sitedf['lon'].values[:,None]-180)%360
+                (self.sitedf['lon'].values[:,None])%360
+            )).argmin(1)
+        )
+        self.sitedf['j'] = (
+            (np.abs(
+                mod.ds.lat.values - 
+                self.sitedf['lat'].values[:,None]
+            )).argmin(1)
+        )
     
-    def clip(self, mod):
+    def clipij(self, mod):
         '''
         get rid of sites outside domain
         * mod: ModGetter object
         '''
-        # Not yet implemented
-        # Need code from Bezier
-        #return dfcastnet
-        pass
+        modij = np.stack(
+            np.where(mod.usmask)[::-1], axis=1
+        )
+        
+        obsij = np.stack(
+            [self.sitedf['i'], self.sitedf['j']], axis=1
+        )
+        
+        inmod = np.stack(
+            [np.in1d(obsij[:,0], modij[:,0]),
+            np.in1d(obsij[:,1], modij[:,1])],
+            axis=1
+        ).all(1)
+        
+        self.sitedf = self.sitedf[inmod]
+        self.df = self.df.merge(self.sitedf[['SITE_ID']],on='SITE_ID')
     
     
     def cluster(self):

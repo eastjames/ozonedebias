@@ -16,7 +16,7 @@ def detrender(df, ozkey='ozone', toyear=2000):
              existed in that year
     '''
     
-    if toyear = 'all':
+    if toyear == 'all':
         myyear = pd.date_range('1987-01-01','2010-12-31')
     else:
         myyear = pd.date_range(f'{toyear}-01-01', f'{toyear}-12-31')

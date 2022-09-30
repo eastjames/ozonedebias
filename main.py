@@ -1,15 +1,22 @@
 # main program
 
-from .obs import castnet
+from ozonedebias import debiaser
 
-castnet.get_castnet() # check for file and download if needed
-df = castnet.openclean_castnet(yearlim=(1980,2010))
-df = (
-    df.pipe(castnet.tomda8)
-    .pipe(castnet.pair_sites)
-    .pipe(castnet.detrendit)
-)
 
-# open model file(s)? with xarray
+# create debiaser instance
+db = debiaser.Debiaser()
 
-# clip
+# create obs instance from existing file, now an attr of debiaser
+db.assign_obs(mda8file='ozonedebias/data/castnet/castnet_mda8.csv')
+
+# detrend castnet obs
+db.obs.df = db.obs.detrendit()
+
+# create mod instance, attr of debiaser
+basedir '/mnt/raid2/Shared/climate_aq/cesm1_1_2/archive/prod/'
+fpath = 'REF.CS30.IC1.1980-2010.runs/REF.CS30.IC1.1980-2010.2000/RESULTS.new/REF.CS30.IC1.1980-2010.2000.AQ.nc'
+infile = basedir + fpath
+db.assign_mod(file=infile)
+
+
+
