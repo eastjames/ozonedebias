@@ -9,7 +9,7 @@ class ObsGetter:
     has a kind, right now only "castnet"
     df has columns ['SITE_ID','DATE_TIME','lat','lon','ozone']
     '''
-    def __init__(self,kind):
+    def __init__(self,kind,obtkey='DATE_TIME'):
         #self.file = file
         self.df = None # data frame of data
         self.sitedf = None # data frame of site data
@@ -93,6 +93,9 @@ class ObsGetter:
         assert ~tmpdf[['days','SITE_ID']].duplicated().all()
         
         self.df = tmpdf[mycols].dropna()
+        
+        # normalize times
+        self.normt(obkey='DATE_TIME')
 
 
     
@@ -178,11 +181,18 @@ class ObsGetter:
         and update sitedf to only includes
         sites that are here in that time
         '''
-        dtidx = pd.DatetimeIndex(self.df[obkey]).normalize()
-        modidx = mod.ds.indexes[modkey].normalize()
+        dtidx = pd.DatetimeIndex(self.df[obkey])
+        modidx = mod.ds.indexes[modkey]
         self.df = self.df[dtidx.isin(modidx)]
+        #self.df = self.df[self.df[obkey].isin(mod.ds[modkey])]
         self._updatesites()
         
+    def normt(self,obkey='DATE_TIME'):
+        '''
+        normalize date
+        '''
+        tidx = pd.DatetimeIndex(self.df[obkey]).normalize()
+        self.df[obkey] = tidx
     
     
     def cluster(self):

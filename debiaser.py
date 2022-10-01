@@ -4,6 +4,7 @@
 from .obsgetter import ObsGetter, Castnet
 from .modgetter import ModGetter, Camchem
 from . import clustering
+from . import debias
 
 import numpy as np
 import os
@@ -147,10 +148,36 @@ class Debiaser:
         modclusters = clustering.clustermod(dfm, self.obs, clusterby)
         dclusters = (
             self.mod.ds[ozkey]
-            .mean('date').where(db.mod.usmask)
+            .mean('date').where(self.mod.usmask)
             .copy(deep=True)
             .rename('cluster')
         )
         dclusters.values[self.mod.usmask] = modclusters
         self.mod.setclusters(dclusters)
+
+    def corrector(
+            self,
+            QS = np.arange(0,1.001,0.001),
+            modozkey='O3_SRF_8H_24HMAX',
+            clusterlist = None
+        ):
+        '''
+        Recursively call bias corrector for each region
         
+        * clusterlist: list of cluster numbers, default is list of
+                       unique, non-nan values in self.mod.clusters
+        * QS: quantiles, defaults np.arange(0,1.001,0.001)
+        * modozkey: name of mod ozone var, O3_SRF_8H_24HMAX
+        
+        Returns: dataarray of 3d model mda8 o3 with regions corrected based on obsdf
+        '''
+        if clusterlist is None:
+            clusterlist = list(filter(lambda v: v == v, np.unique(self.mod.clusters.values)))
+            
+        if len(clusterlist) == 0:
+            return #self.mod.dsadj
+        else:
+            self.mod.setdadj(
+                debias.bias_correct_hist(self, clusterlist.pop(), QS, modozkey)
+            )
+            return self.corrector(QS, modozkey, clusterlist)

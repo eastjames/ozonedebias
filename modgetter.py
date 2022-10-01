@@ -85,27 +85,39 @@ class ModGetter:
     
     def __init__(self,kind,ds):
         self.ds = ds # xr.dataset of data
+        self.dadj = None
         self.kind = kind # kind i.e. camchem
         self.datadir = f'data/{kind}'# data dir for this kind
         self.clusters = None
         
+    def setdadj(self,dadj):
+        self.dadj = dadj
+
     def setclusters(self,ds):
         self.clusters = ds
         
+    def normt(self, modkey='date'):
+        '''
+        normalize model date
+        '''
+        modidx = self.ds.indexes[modkey].normalize()
+        self.ds[modkey] = modidx
         
 class Camchem(ModGetter):
     '''
     ModGetter subclass of Camchem model specifically
     '''
-    def __init__(self, files):
+    def __init__(self, files, modtkey='date'):
         '''
         * files: path to CAMChem files to be opened
+        * modtkey: name of date dimension
         '''
         if isinstance(files, list):
             ds = opener(files)
         elif isinstance(files, str):
             ds = opener([files])
         super().__init__(kind='camchem',ds=ds)
+        self.normt(modtkey)
     
     def make_nca_region_mask(self):
         # file with U.S. gridcells:
