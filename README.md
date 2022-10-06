@@ -26,7 +26,7 @@ castnet.df.to_csv('path/to/file/castnet_mda8.csv')
 db = debiaser.Debiaser() # instantiate debiaser object
 
 # assign obs from mda8 file
-db.assign_obs(mda8file='~/ozonedebias/data/castnet/castnet_mda8.csv')
+db.assign_obs(mda8file='path/to/file/castnet_mda8.csv')
 
 # alternatively, skip Castnet object step and simply:
 db.assign_obs(kind = 'castnet') # this will download castnet if needed
