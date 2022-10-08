@@ -103,6 +103,8 @@ class ModGetter:
         modidx = self.ds.indexes[modkey].normalize()
         self.ds[modkey] = modidx
         
+        
+        
 class Camchem(ModGetter):
     '''
     ModGetter subclass of Camchem model specifically

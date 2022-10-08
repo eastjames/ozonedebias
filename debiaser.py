@@ -24,6 +24,7 @@ class Debiaser:
     
     def __init__(self):
         self.mod = None # modgetter object
+        self.modfut = None # modgetter object
         self.obs = None # obsgetter object
         self.outdir = None # directory to save out files
         
@@ -59,26 +60,36 @@ class Debiaser:
         
         
         
-    def assign_mod(self, kind = 'camchem', file = None):
+    def assign_mod(self, kind = 'camchem', file = None, hist = True):
         '''
         assign model data here...
         
         * kind: kind of model, options 'camchem',
         * file: path to model file or list of paths
+        * hist: bool, True if mod is historical simulation, False if it 
+                is projection simulation.  Default: True
         '''
         if kind == 'camchem':
             if file is None:
                 print('\nFile required\n')
-            self.mod = Camchem(file)
+            if hist: 
+                self.mod = Camchem(file)
+            else:
+                self.modfut = Camchem(file)
             
             
-    def mod_from_existing(self, modgetter):
+    def mod_from_existing(self, modgetter, hist = True):
         '''
         assign model data here...
         
-        modgetter: modgetter object
+        * modgetter: modgetter object
+        * hist: bool, True if mod is historical simulation, False if it 
+                is projection simulation.  Default: True
         '''
-        self.mod = modgetter
+        if hist:
+            self.mod = modgetter
+        else:
+            self.modfut = modgetter
     
     def save_inertia(
             self, 
@@ -157,6 +168,7 @@ class Debiaser:
 
     def corrector(
             self,
+            hist = True,
             QS = np.arange(0,1.001,0.001),
             modozkey='O3_SRF_8H_24HMAX',
             clusterlist = None
@@ -164,6 +176,8 @@ class Debiaser:
         '''
         Recursively call bias corrector for each region
         
+        * hist: bool, True if historical correction, False if 
+                projection correction. Default: True
         * clusterlist: list of cluster numbers, default is list of
                        unique, non-nan values in self.mod.clusters
         * QS: quantiles, defaults np.arange(0,1.001,0.001)
@@ -176,8 +190,17 @@ class Debiaser:
             
         if len(clusterlist) == 0:
             return #self.mod.dsadj
-        else:
+        
+        # historical correction
+        elif hist: 
             self.mod.setdadj(
                 debias.bias_correct_hist(self, clusterlist.pop(), QS, modozkey)
             )
-            return self.corrector(QS, modozkey, clusterlist)
+            return self.corrector(hist, QS, modozkey, clusterlist)
+        
+        # future correction
+        else: 
+            self.modfut.setdadj(
+                debias.bias_correct_future(self, clusterlist.pop(), QS, modozkey)
+            )
+            return self.corrector(hist, QS, modozkey, clusterlist)
