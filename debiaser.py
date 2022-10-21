@@ -131,18 +131,31 @@ class Debiaser:
         self.obs.clipij(self.mod) # clip sites to only those within mod mask
         self.obs.clipt(self.mod) # clip obs to match mod times
         self.obs.detrendit(toyear=2000) # detrend df
-        df = clustering.prepcols(self.obs.df) # prepare columns
-        df = df.merge(self.obs.sitedf[['i','j','SITE_ID']],on='SITE_ID')# merge with site i,j indices
-        dfstd = clustering.standardize(df, clusterby) # standardize with MinMaxScaler
-        dfclustered = clustering.clusterobs(dfstd, n_clusters, clusterby , shuffledata, samplefrac)
-        tmpdf = self.obs.sitedf.reset_index(drop=True).iloc[dfclustered['index']] # reorder in case shuffled
-        #tmpdf['cluster'] = dfclustered['cluster']
-        tmpdf = tmpdf.merge(dfclustered[['index','cluster']],right_on='index',left_index=True)
-        #dfclustered['SITE_ID'] = tmpdf.reset_index().iloc[dfclustered['index']]['SITE_ID'].values
-        dfclustered = dfclustered.merge(tmpdf[['index','SITE_ID']],on='index')
-        dfclustered = dfclustered.drop(columns='index')
-        self.obs.setclusterdf(dfclustered)
-        self.obs.setsitedf(tmpdf.drop(columns='index'))
+        if clusterby == 'NCA':
+            nca = self.mod.get_nca_region_masks()
+            dsregs = np.zeros(nca['Southeast'].shape)
+            for i,(k,v) in enumerate(nca.items()):
+                dsregs = np.where(
+                    nca[k],
+                    i, dsregs
+                )
+            tmpdf = self.obs.sitedf.copy(deep=True)
+            tmpdf['cluster'] = dsregs[self.obs.sitedf.j,self.obs.sitedf.i]
+            self.obs.setsitedf(tmpdf)
+            self.obs.setclusterdf(tmpdf[['cluster','SITE_ID']]) # maybe not necessary?
+        else:
+            df = clustering.prepcols(self.obs.df) # prepare columns
+            df = df.merge(self.obs.sitedf[['i','j','SITE_ID']],on='SITE_ID')# merge with site i,j indices
+            dfstd = clustering.standardize(df, clusterby) # standardize with MinMaxScaler
+            dfclustered = clustering.clusterobs(dfstd, n_clusters, clusterby , shuffledata, samplefrac)
+            tmpdf = self.obs.sitedf.reset_index(drop=True).iloc[dfclustered['index']] # reorder in case shuffled
+            #tmpdf['cluster'] = dfclustered['cluster']
+            tmpdf = tmpdf.merge(dfclustered[['index','cluster']],right_on='index',left_index=True)
+            #dfclustered['SITE_ID'] = tmpdf.reset_index().iloc[dfclustered['index']]['SITE_ID'].values
+            dfclustered = dfclustered.merge(tmpdf[['index','SITE_ID']],on='index')
+            dfclustered = dfclustered.drop(columns='index')
+            self.obs.setclusterdf(dfclustered)
+            self.obs.setsitedf(tmpdf.drop(columns='index'))
         
     def cluster_mod(
             self,
@@ -155,16 +168,33 @@ class Debiaser:
         
         * clusterby: features of model data to sort on
         '''
-        dfm = clustering.prepmod(self.mod.ds, self.mod.usmask,clusterby,ozkey)
-        modclusters = clustering.clustermod(dfm, self.obs, clusterby)
-        dclusters = (
-            self.mod.ds[ozkey]
-            .mean('date').where(self.mod.usmask)
-            .copy(deep=True)
-            .rename('cluster')
-        )
-        dclusters.values[self.mod.usmask] = modclusters
-        self.mod.setclusters(dclusters)
+        if clusterby == 'NCA':
+            
+            pass
+            nca = self.mod.get_nca_region_masks()
+            dsregs = np.zeros(nca['Southeast'].shape)
+            for i,(k,v) in enumerate(nca.items()):
+                dsregs = np.where(
+                    nca[k],
+                    i, dsregs
+                )
+            dclusters = self.mod.ds[ozkey].isel(date=0,drop=True).copy(deep=True)
+            dclusters.attrs['long_name'] = 'clusters'
+            dclusters.attrs['units'] = 'none'
+            dclusters.values = dsregs
+            dclusters = dclusters.where(self.mod.usmask,np.nan)
+            self.mod.setclusters(dclusters)
+        else:
+            dfm = clustering.prepmod(self.mod.ds, self.mod.usmask,clusterby,ozkey)
+            modclusters = clustering.clustermod(dfm, self.obs, clusterby)
+            dclusters = (
+                self.mod.ds[ozkey]
+                .mean('date').where(self.mod.usmask)
+                .copy(deep=True)
+                .rename('cluster')
+            )
+            dclusters.values[self.mod.usmask] = modclusters
+            self.mod.setclusters(dclusters)
 
     def corrector(
             self,
