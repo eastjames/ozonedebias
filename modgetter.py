@@ -120,8 +120,15 @@ class Camchem(ModGetter):
             ds = opener([files])
         super().__init__(kind='camchem',ds=ds)
         self.normt(modtkey)
+        
+    def make_us_mask(self):
+        pass
     
-    def make_nca_region_mask(self):
+    def get_nca_region_masks(self):
+        '''
+        return mask for NCA regions
+        with keys regnames
+        '''
         # file with U.S. gridcells:
         usf = f'{basedir}/data/masks/weights-nca-regions-1.9x2.5.nc'
         regwgt = xr.open_dataset(usf)
@@ -140,7 +147,14 @@ class Camchem(ModGetter):
         rm = {}
         for i,r in enumerate(regnames):
             rm[r] = (rmidx==(i+1))
+        return rm
+        
+    
+    #def make_nca_region_mask(self):
+    def make_us_mask(self):
+        
         # Make US mask
+        rm = self.get_nca_region_masks()
         usmasktmp = np.zeros(rm['Southwest'].shape)
         for r in rm.keys():
             usmasktmp = usmasktmp + rm[r]
